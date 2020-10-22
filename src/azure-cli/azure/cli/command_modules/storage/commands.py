@@ -16,7 +16,8 @@ from azure.cli.command_modules.storage._client_factory import (cf_sa, cf_blob_co
                                                                cf_adls_file_system, cf_adls_directory,
                                                                cf_adls_file, cf_adls_service,
                                                                cf_blob_client, cf_blob_lease_client,
-                                                               cf_or_policy, cf_container_client)
+                                                               cf_or_policy, cf_container_client,
+                                                               cf_queue_service)
 
 from azure.cli.command_modules.storage.sdkutil import cosmosdb_table_exists
 from azure.cli.core.commands import CliCommandType
@@ -102,7 +103,8 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
         g.storage_custom_command('remove', 'storage_remove', is_preview=True)
 
     with self.command_group('storage', custom_command_type=get_custom_sdk('azcopy', None)) as g:
-        g.custom_command('copy', 'storage_copy', is_preview=True)
+        from ._validators import validate_azcopy_credential
+        g.storage_custom_command('copy', 'storage_copy', is_preview=True, validator=validate_azcopy_credential)
 
     with self.command_group('storage account', storage_account_sdk, resource_type=ResourceType.MGMT_STORAGE,
                             custom_command_type=storage_account_custom_type) as g:
@@ -293,6 +295,8 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
         g.storage_custom_command_oauth('list', 'list_blobs', client_factory=cf_container_client,
                                        transform=transform_blob_list_output,
                                        table_transformer=transform_blob_output)
+        g.storage_custom_command_oauth('query', 'query_blob',
+                                       is_preview=True, min_api='2019-12-12')
 
     blob_lease_client_sdk = CliCommandType(
         operations_tmpl='azure.multiapi.storagev2.blob._lease#BlobLeaseClient.{}',
@@ -346,10 +350,6 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
         g.storage_command_oauth('copy cancel', 'abort_copy_blob')
         g.storage_custom_command_oauth(
             'copy start-batch', 'storage_blob_copy_batch')
-
-    with self.command_group('storage blob',
-                            custom_command_type=get_custom_sdk('blob', cf_blob_client)) as g:
-        g.storage_custom_command_oauth('set-tier', 'set_blob_tier_v2')
 
     with self.command_group('storage blob', storage_account_sdk, resource_type=ResourceType.MGMT_STORAGE,
                             custom_command_type=storage_blob_custom_type) as g:
@@ -466,6 +466,20 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
         g.show_command(
             'show', 'get', transform=lambda x: getattr(x, 'legal_hold', x))
 
+    with self.command_group('storage container-rm', command_type=blob_container_mgmt_sdk,
+                            custom_command_type=get_custom_sdk('blob', cf_blob_container_mgmt,
+                                                               resource_type=ResourceType.MGMT_STORAGE),
+                            resource_type=ResourceType.MGMT_STORAGE, min_api='2018-02-01', is_preview=True) as g:
+        g.custom_command('create', 'create_container_rm')
+        g.command('delete', 'delete', confirmation=True)
+        g.generic_update_command('update', setter_name='update', max_api='2019-04-01')
+        g.generic_update_command('update', setter_name='update', setter_arg_name='blob_container',
+                                 custom_func_name='update_container_rm', min_api='2019-06-01')
+        g.custom_command('list', 'list_container_rm')
+        g.custom_command('exists', 'container_rm_exists', transform=create_boolean_result_output_transformer('exists'),
+                         table_transformer=transform_boolean_for_table)
+        g.show_command('show', 'get')
+
     file_sdk = CliCommandType(
         operations_tmpl='azure.multiapi.storage.file.fileservice#FileService.{}',
         client_factory=file_data_service_factory,
@@ -475,15 +489,16 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
                             custom_command_type=get_custom_sdk('file',
                                                                cf_mgmt_file_shares,
                                                                resource_type=ResourceType.MGMT_STORAGE),
-                            resource_type=ResourceType.MGMT_STORAGE, min_api='2019-04-01', is_preview=True) as g:
+                            resource_type=ResourceType.MGMT_STORAGE, min_api='2019-04-01') as g:
         g.custom_command('create', 'create_share_rm')
         g.command('delete', 'delete', confirmation=True)
         g.custom_command('exists', '_file_share_exists', transform=create_boolean_result_output_transformer('exists'))
-        g.command('list', 'list')
+        g.custom_command('list', 'list_share_rm')
         g.show_command('show', 'get')
         g.generic_update_command('update', setter_name='update', setter_arg_name='file_share',
                                  custom_func_name='update_share_rm')
         g.custom_command('stats', 'get_stats', transform=lambda x: getattr(x, 'share_usage_bytes'))
+        g.custom_command('restore', 'restore_share_rm')
 
     with self.command_group('storage share', command_type=file_sdk,
                             custom_command_type=get_custom_sdk('file', file_data_service_factory)) as g:
@@ -591,8 +606,6 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
         from ._format import transform_boolean_for_table
         from ._transformers import create_boolean_result_output_transformer
 
-        g.storage_command_oauth('list', 'list_queues',
-                                transform=transform_storage_list_output)
         g.storage_command_oauth('create', 'create_queue', transform=create_boolean_result_output_transformer('created'),
                                 table_transformer=transform_boolean_for_table)
         g.storage_command_oauth('delete', 'delete_queue', transform=create_boolean_result_output_transformer('deleted'),
@@ -631,6 +644,16 @@ def load_command_table(self, _):  # pylint: disable=too-many-locals, too-many-st
                                 table_transformer=transform_boolean_for_table)
         g.storage_command_oauth('clear', 'clear_messages')
         g.storage_command_oauth('update', 'update_message')
+
+    queue_service_sdk = CliCommandType(
+        operations_tmpl='azure.multiapi.storagev2.queue._queue_service_client#QueueServiceClient.{}',
+        client_factory=cf_queue_service, resource_type=ResourceType.DATA_STORAGE_QUEUE)
+
+    with self.command_group('storage queue', queue_service_sdk,
+                            resource_type=ResourceType.DATA_STORAGE_QUEUE, min_api='2018-03-28',
+                            custom_command_type=get_custom_sdk('queue', client_factory=cf_queue_service,
+                                                               resource_type=ResourceType.DATA_STORAGE_QUEUE)) as g:
+        g.storage_custom_command_oauth('list', 'list_queues', transform=transform_storage_list_output)
 
     if cosmosdb_table_exists(self.cli_ctx):
         table_sdk = CliCommandType(operations_tmpl='azure.multiapi.cosmosdb.table.tableservice#TableService.{}',

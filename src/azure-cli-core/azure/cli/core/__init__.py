@@ -6,7 +6,7 @@
 
 from __future__ import print_function
 
-__version__ = "2.11.1"
+__version__ = "2.13.0"
 
 import os
 import sys
@@ -35,7 +35,7 @@ EVENT_FAILED_EXTENSION_LOAD = 'MainLoader.OnFailedExtensionLoad'
 # Modules that will always be loaded. They don't expose commands but hook into CLI core.
 ALWAYS_LOADED_MODULES = []
 # Extensions that will always be loaded if installed. They don't expose commands but hook into CLI core.
-ALWAYS_LOADED_EXTENSIONS = ['azext_ai_examples', 'azext_ai_did_you_mean_this']
+ALWAYS_LOADED_EXTENSIONS = ['azext_ai_examples']
 
 
 class AzCli(CLI):
@@ -105,9 +105,9 @@ class AzCli(CLI):
         from azure.cli.core.commands.constants import (SURVEY_PROMPT, SURVEY_PROMPT_COLOR,
                                                        UX_SURVEY_PROMPT, UX_SURVEY_PROMPT_COLOR)
 
-        ver_string, updates_available = get_az_version_string()
+        ver_string, updates_available_components = get_az_version_string()
         print(ver_string)
-        show_updates(updates_available)
+        show_updates(updates_available_components)
 
         show_link = self.config.getboolean('output', 'show_survey_link', True)
         if show_link:
