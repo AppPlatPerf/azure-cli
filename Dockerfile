@@ -63,6 +63,9 @@ RUN ./scripts/install_full.sh \
  && apk add --virtual .rundeps $runDeps
 
 WORKDIR /
+COPY ./src/azure-cli/azure/cli/command_modules/acr/azure/mgmt/containerregistry/v2020_11_01_preview  /usr/local/lib/python3.6/site-packages/azure/mgmt/containerregistry/v2020_11_01_preview/
+
+#RUN pip install /packages/container_registry_management-2020_11_01_preview-py3-none-any.whl
 
 # Remove CLI source code from the final image and normalize line endings.
 RUN rm -rf ./azure-cli && \

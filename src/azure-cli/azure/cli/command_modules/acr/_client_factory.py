@@ -18,8 +18,7 @@ def get_acr_service_client(cli_ctx, api_version=None):
 
 def get_acr_service_client_from_local_sdk(cli_ctx):
     """Returns the client for managing container registries. """
-    #from azure.mgmt.containerregistry.v2020_11_01_preview import ContainerRegistryManagementClient
-    from .azure.mgmt.containerregistry.v2020_11_01_preview import ContainerRegistryManagementClient
+    from azure.mgmt.containerregistry.v2020_11_01_preview import ContainerRegistryManagementClient
     return get_mgmt_service_client(cli_ctx, ContainerRegistryManagementClient)
 
 
