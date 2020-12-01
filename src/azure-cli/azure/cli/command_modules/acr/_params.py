@@ -385,8 +385,8 @@ def load_arguments(self, _):  # pylint: disable=too-many-statements
         c.argument('key_encryption_key', help="key vault key uri")
         c.argument('identity', help="client id of managed identity, resource name or id of user assigned identity. Use '[system]' to refer to the system assigned identity")
 
-    with self.argument_context('acr pypi upload') as c:
-        c.positional('file_path', help='The PyPI package file path')
+    with self.argument_context('acr package upload') as c:
+        c.positional('file_path', help='The package file path')
 
 
 def _get_helm_default_install_location():
